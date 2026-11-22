@@ -1,0 +1,63 @@
+name: Foundation checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+          cache: pip
+          cache-dependency-path: apps/ai-service/requirements*.txt
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      - working-directory: apps/ai-service
+        run: |
+          python -m pip install -r requirements-dev.txt
+          python -m ruff check .
+          python -m mypy main.py tests
+          python -m pytest
+      - run: pnpm --filter @ledgermind/web exec playwright install --with-deps chromium
+      - run: cp .env.example .env
+      - run: docker compose --env-file .env -f infra/docker-compose.yml up --build --wait --wait-timeout 180
+      - run: |
+          curl --fail http://127.0.0.1:3001/health
+          curl --fail http://127.0.0.1:3001/ready
+          docker compose --env-file .env -f infra/docker-compose.yml exec -T ai-service python -c "from urllib.request import urlopen; print(urlopen('http://127.0.0.1:8000/health').read().decode())"
+          docker compose --env-file .env -f infra/docker-compose.yml run --rm migrate pnpm --filter @ledgermind/database validate
+          docker compose --env-file .env -f infra/docker-compose.yml run --rm migrate pnpm --filter @ledgermind/database migrate:status
+      - run: docker compose --env-file .env -f infra/docker-compose.yml exec -T -e RUN_DB_TESTS=1 api pnpm --filter @ledgermind/api test
+      - run: |
+          export PLAYWRIGHT_ADMIN_EMAIL=browser-admin@example.test
+          export PLAYWRIGHT_ADMIN_PASSWORD="$(openssl rand -hex 24)"
+          export PLAYWRIGHT_OPERATOR_EMAIL=browser-operator@example.test
+          export PLAYWRIGHT_OPERATOR_PASSWORD="$(openssl rand -hex 24)"
+          printf '%s\n' "$PLAYWRIGHT_ADMIN_PASSWORD" | docker compose --env-file .env -f infra/docker-compose.yml exec -T api pnpm --filter @ledgermind/api user:create "$PLAYWRIGHT_ADMIN_EMAIL" ADMIN
+          printf '%s\n' "$PLAYWRIGHT_OPERATOR_PASSWORD" | docker compose --env-file .env -f infra/docker-compose.yml exec -T api pnpm --filter @ledgermind/api user:create "$PLAYWRIGHT_OPERATOR_EMAIL" OPERATOR
+          pnpm --filter @ledgermind/web test:e2e
+      - if: failure()
+        run: docker compose --env-file .env -f infra/docker-compose.yml logs --no-color
+      - if: always()
+        run: |
+          if [ -f .env ]; then
+            docker compose --env-file .env -f infra/docker-compose.yml down
+          fi
