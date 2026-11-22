@@ -11,3 +11,4 @@
 **/*.tsbuildinfo
 **/playwright-report
 **/test-results
+.invoice-files

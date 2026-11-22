@@ -1,5 +1,8 @@
 import type { PrismaClient } from "@ledgermind/database";
 import express from "express";
+import type { InvoiceStorage } from "./lib/invoice-storage.js";
+import { registerInvoiceRoutes } from "./modules/invoices/invoice.routes.js";
+import { createInvoiceService } from "./modules/invoices/invoice.service.js";
 import { createRequireSession } from "./middleware/authentication.js";
 import { handleError } from "./middleware/error-handler.js";
 import { checkOrigin } from "./middleware/origin.js";
@@ -8,7 +11,11 @@ import { createAuthService } from "./modules/auth/auth.service.js";
 import { registerSupplierRoutes } from "./modules/suppliers/supplier.routes.js";
 import { createSupplierService } from "./modules/suppliers/supplier.service.js";
 
-export function createApp(checkDatabase: () => Promise<unknown>, business?: { db: PrismaClient; origin: string }) {
+export function createApp(checkDatabase: () => Promise<unknown>, business?: {
+  db: PrismaClient;
+  origin: string;
+  invoices?: { storage: InvoiceStorage; maxBytes: number };
+}) {
   const app = express();
   app.disable("x-powered-by");
 
@@ -34,6 +41,10 @@ export function createApp(checkDatabase: () => Promise<unknown>, business?: { db
     router.use(paths, checkOrigin(origin), express.json({ limit: "8kb" }));
     registerAuthRoutes(router, auth, requireSession, origin);
     registerSupplierRoutes(router, createSupplierService(db), requireSession);
+    if (business.invoices) {
+      router.use("/invoices", checkOrigin(origin));
+      registerInvoiceRoutes(router, createInvoiceService(db, business.invoices.storage), requireSession, business.invoices.maxBytes);
+    }
     router.use(handleError);
     app.use(router);
   }

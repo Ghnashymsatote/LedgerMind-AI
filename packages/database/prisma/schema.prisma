@@ -24,6 +24,7 @@ model User {
   role         Role
   createdAt    DateTime  @default(now())
   sessions     Session[]
+  invoices     Invoice[]
 }
 
 model Session {
@@ -41,4 +42,27 @@ model Supplier {
   taxId           String?
   status          SupplierStatus @default(ACTIVE)
   tallyLedgerName String
+  invoices        Invoice[]
+}
+
+enum InvoiceStatus {
+  UPLOADED
+}
+
+model Invoice {
+  id           String        @id @default(uuid()) @db.Uuid
+  supplierId   String        @db.Uuid
+  uploadedById String        @db.Uuid
+  fileName     String
+  mimeType     String
+  sizeBytes    Int
+  storageKey   String        @unique
+  uploadedAt   DateTime      @default(now())
+  status       InvoiceStatus @default(UPLOADED)
+  supplier     Supplier      @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  uploadedBy   User          @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([uploadedAt, id])
+  @@index([supplierId, uploadedAt, id])
+  @@index([uploadedById])
 }

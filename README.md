@@ -1,10 +1,20 @@
 # LedgerMind AI
 
-LedgerMind AI helps small businesses review supplier invoice data before sending approved vouchers to Tally. This checkout contains Phase 1A authentication and supplier management. The [approved blueprint](PROJECT_BLUEPRINT.md) defines the MVP.
+LedgerMind AI helps small businesses review supplier invoice data before sending approved vouchers to Tally. This checkout includes authentication, supplier management, and Phase 1B invoice intake. The [approved blueprint](PROJECT_BLUEPRINT.md) defines the MVP.
 
 ## Start on Windows
 
-Start Docker Desktop in Linux container mode. For host-side checks, use Node.js 24.14.0, pnpm 10.33.0, and Python 3.13.12. Run the commands from the repository root in PowerShell.
+Install Git and Docker Desktop on the new PC, then start Docker Desktop in Linux container mode. Clone the repo and run [setup.ps1](setup.ps1) from PowerShell.
+
+```powershell
+git clone https://github.com/Ghnashymsatote/LedgerMind-AI.git
+Set-Location LedgerMind-AI
+powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -AdminEmail admin@example.test
+```
+
+The script creates `.env` on the first run, builds and starts Compose, waits for health checks and migrations, and prints the login URL. With `-AdminEmail`, it prompts for a password and creates the first ADMIN. Omit that option when restarting with an existing account. A clone copies the source code. Users and invoices live in Docker volumes on the PC where they were created, so the new PC starts with an empty database.
+
+Docker handles the app runtimes for startup. For host-side checks, use Node.js 24.14.0, pnpm 10.33.0, and Python 3.13.12. To start Compose manually, run the following from the repository root in PowerShell.
 
 ```powershell
 if (-not (Test-Path .env)) { Copy-Item .env.example .env }
@@ -34,7 +44,7 @@ docker compose --env-file .env -f infra/docker-compose.yml run --rm migrate pnpm
 docker compose --env-file .env -f infra/docker-compose.yml run --rm migrate pnpm --filter @ledgermind/database migrate:status
 ```
 
-FastAPI, PostgreSQL, and Redis have no published host ports. The web and API ports are bound to localhost. `API_BASE_URL` connects Next.js to Express. `AI_SERVICE_URL` and `REDIS_URL` reserve internal addresses for later phases. Phase 1A requires no Gemini key, Tally installation, or cloud account.
+FastAPI, PostgreSQL, and Redis have no published host ports. The web and API ports are bound to localhost. `API_BASE_URL` connects Next.js to Express. `AI_SERVICE_URL` and `REDIS_URL` reserve internal addresses for later phases. Local invoice intake requires no Gemini key, Tally installation, or cloud account.
 
 Stop the services and keep the PostgreSQL volume.
 
@@ -67,6 +77,17 @@ The browser calls `/api/auth/login`, `/api/auth/logout`, `/api/auth/me`, and `/a
 
 Sessions expire after eight hours. Logout revokes the session in PostgreSQL. The API stores password hashes and session token digests.
 
+
+## Upload and verify an invoice
+
+1. Start or rebuild the stack using the PowerShell commands above. Compose applies the invoice migration before starting the API.
+2. Sign in and use **Suppliers** to add a supplier as an ADMIN. Both ADMIN and OPERATOR accounts can use **Invoices → Upload invoice**.
+3. Select a supplier and a PDF, PNG, or JPEG. The default limit is 10 MiB (10,485,760 bytes). Set `INVOICE_MAX_FILE_BYTES` in `.env` and recreate the web and API services to use a different limit. The supported configuration range is 1 byte through 50 MiB.
+4. After upload, check the `UPLOADED` status, uploader, supplier, file size, and timestamp. Use **View file** or **Download file**.
+5. Return to **Invoices** and search by file or supplier name. You can also filter by supplier and status and navigate through result pages.
+6. Try uploading a text file renamed to `.pdf` or a file larger than the limit. Sign out and revisit the invoice detail or file URL to verify access is blocked.
+
+The API keeps files in the private `invoice-files` Docker volume at `/var/lib/ledgermind/invoices`. PostgreSQL stores metadata and a random storage key. The API detects the file format from its bytes and uses the detected format for the displayed extension and response type. The normal Compose `down` command retains both data volumes. For API development outside Compose, set `INVOICE_STORAGE_DIR` to a private directory. The default is the ignored project-root `.invoice-files` directory when started through the API package scripts.
 
 ## Run development checks
 
@@ -106,7 +127,7 @@ Run the database-backed integration suite in the running API container. It creat
 docker compose --env-file .env -f infra/docker-compose.yml exec -T -e RUN_DB_TESTS=1 api pnpm --filter @ledgermind/api test
 ```
 
-To include the supplier workflow in Playwright, set `PLAYWRIGHT_ADMIN_EMAIL` and `PLAYWRIGHT_ADMIN_PASSWORD` for a dedicated test account. The browser test creates and deactivates a supplier record in the configured database, so run it against test data. A unique name is generated unless `PLAYWRIGHT_SUPPLIER_NAME` is set. Use `PLAYWRIGHT_BASE_URL` if your web port differs from 3000.
+To include the supplier workflow in Playwright, set `PLAYWRIGHT_ADMIN_EMAIL` and `PLAYWRIGHT_ADMIN_PASSWORD` for a dedicated test account. The browser test creates and deactivates a supplier record in the configured database, so run it against test data. A unique name is generated unless `PLAYWRIGHT_SUPPLIER_NAME` is set. To run the operator and invoice workflows, also set `PLAYWRIGHT_OPERATOR_EMAIL` and `PLAYWRIGHT_OPERATOR_PASSWORD`. The invoice test creates a supplier and uploads a sample file. Use a disposable test database and invoice volume for browser tests. Use `PLAYWRIGHT_BASE_URL` if your web port differs from 3000.
 
 
 If Compose startup fails, inspect the affected container with `docker compose --env-file .env -f infra/docker-compose.yml logs`. Check that Docker Desktop is using its Linux engine. If a port is busy, set `WEB_PORT` or `API_PORT` in `.env` and use the selected port in the URLs above. Before the browser smoke test, set `$env:PLAYWRIGHT_BASE_URL` to the frontend URL if you changed `WEB_PORT`.

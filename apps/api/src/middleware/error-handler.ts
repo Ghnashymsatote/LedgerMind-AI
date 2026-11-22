@@ -10,6 +10,6 @@ export const handleError: ErrorRequestHandler = (error: unknown, _request, respo
     response.status(status).json({ error: "Invalid request body." });
     return;
   }
-  console.error("An authentication or supplier request failed.");
+  console.error("A business API request failed.");
   response.status(500).json({ error: "The request could not be completed." });
 };

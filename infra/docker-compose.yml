@@ -10,6 +10,7 @@ services:
     environment:
       API_BASE_URL: ${API_BASE_URL:?Set API_BASE_URL in .env}
       NEXT_TELEMETRY_DISABLED: "1"
+      INVOICE_MAX_FILE_BYTES: ${INVOICE_MAX_FILE_BYTES:-10485760}
     ports:
       - "127.0.0.1:${WEB_PORT:-3000}:3000"
     healthcheck:
@@ -28,6 +29,10 @@ services:
       APP_ORIGIN: ${APP_ORIGIN:-http://127.0.0.1:${WEB_PORT:-3000}}
       REDIS_URL: ${REDIS_URL:?Set REDIS_URL in .env}
       AI_SERVICE_URL: ${AI_SERVICE_URL:?Set AI_SERVICE_URL in .env}
+      INVOICE_MAX_FILE_BYTES: ${INVOICE_MAX_FILE_BYTES:-10485760}
+      INVOICE_STORAGE_DIR: /var/lib/ledgermind/invoices
+    volumes:
+      - invoice-files:/var/lib/ledgermind/invoices
     ports:
       - "127.0.0.1:${API_PORT:-3001}:3001"
     depends_on:
@@ -82,3 +87,4 @@ services:
 
 volumes:
   postgres-data:
+  invoice-files:
