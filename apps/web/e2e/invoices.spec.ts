@@ -56,7 +56,8 @@ test("an operator uploads an invoice and can find and download it", async ({ pag
   await page.getByLabel("Search invoices").fill(supplierName);
   await page.getByRole("button", { name: "Apply filters" }).click();
   await expect(page.getByRole("link", { name: fileName })).toBeVisible();
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("button", { name: `Open account menu for ${email}` }).click();
+  await page.getByRole("menuitem", { name: "Sign out" }).click();
   await expect(page).toHaveURL(/\/login$/);
   expect((await page.request.get(path)).status()).toBe(401);
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ThemeToggle } from "@/components/theme-toggle";
 import type { CurrentUser } from "@/features/auth/types/auth.types";
 
 export function DashboardHeader({ user, disabled, signOut }: {
@@ -18,6 +19,7 @@ export function DashboardHeader({ user, disabled, signOut }: {
         </nav>
         <div className="flex flex-wrap items-center gap-3 text-sm">
           <span className="break-all text-muted-foreground">{user.email} · {user.role === "ADMIN" ? "Admin" : "Operator"}</span>
+          <ThemeToggle />
           <button className="button button-secondary" type="button" disabled={disabled} onClick={signOut}>Sign out</button>
         </div>
       </div>

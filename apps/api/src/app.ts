@@ -11,12 +11,15 @@ import { createAuthService } from "./modules/auth/auth.service.js";
 import { registerSupplierRoutes } from "./modules/suppliers/supplier.routes.js";
 import { createSupplierService } from "./modules/suppliers/supplier.service.js";
 
-export function createApp(checkDatabase: () => Promise<unknown>, business?: {
+interface BusinessDependencies {
   db: PrismaClient;
   origin: string;
   invoices?: { storage: InvoiceStorage; maxBytes: number };
-}) {
+}
+
+export function createApp(checkDatabase: () => Promise<unknown>, business?: BusinessDependencies) {
   const app = express();
+
   app.disable("x-powered-by");
 
   app.get("/health", (_request, response) => {
@@ -32,22 +35,33 @@ export function createApp(checkDatabase: () => Promise<unknown>, business?: {
     }
   });
 
-  if (business) {
-    const { db, origin } = business;
-    const router = express.Router();
-    const paths = ["/auth", "/suppliers"];
-    const auth = createAuthService(db);
-    const requireSession = createRequireSession(auth);
-    router.use(paths, checkOrigin(origin), express.json({ limit: "8kb" }));
-    registerAuthRoutes(router, auth, requireSession, origin);
-    registerSupplierRoutes(router, createSupplierService(db), requireSession);
-    if (business.invoices) {
-      router.use("/invoices", checkOrigin(origin));
-      registerInvoiceRoutes(router, createInvoiceService(db, business.invoices.storage), requireSession, business.invoices.maxBytes);
-    }
-    router.use(handleError);
-    app.use(router);
+  if (!business) {
+    return app;
   }
+
+  const { db, origin, invoices } = business;
+  const router = express.Router();
+
+  const authService = createAuthService(db);
+  const supplierService = createSupplierService(db);
+  const requireSession = createRequireSession(authService);
+  const protectOrigin = checkOrigin(origin);
+  const parseJson = express.json({ limit: "8kb" });
+
+  router.use(["/auth", "/suppliers"], protectOrigin, parseJson);
+
+  registerAuthRoutes(router, authService, requireSession, origin);
+  registerSupplierRoutes(router, supplierService, requireSession);
+
+  if (invoices) {
+    const invoiceService = createInvoiceService(db, invoices.storage);
+
+    router.use("/invoices", protectOrigin);
+    registerInvoiceRoutes(router, invoiceService, requireSession, invoices.maxBytes);
+  }
+
+  router.use(handleError);
+  app.use(router);
 
   return app;
 }

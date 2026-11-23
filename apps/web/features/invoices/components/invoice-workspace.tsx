@@ -1,9 +1,6 @@
 "use client";
 
-import { DashboardHeader } from "@/components/layout/dashboard-header";
 import { useCurrentUser } from "@/features/auth/hooks/use-current-user";
-import { useLogout } from "@/features/auth/hooks/use-logout";
-import { useHydrated } from "@/hooks/use-hydrated";
 import type { InvoiceScreen } from "../types/invoice.types";
 import { InvoiceDetail } from "./invoice-detail";
 import { InvoiceList } from "./invoice-list";
@@ -11,8 +8,6 @@ import { InvoiceUploadForm } from "./invoice-upload-form";
 
 export function InvoiceWorkspace({ screen }: { screen: InvoiceScreen }) {
   const current = useCurrentUser();
-  const logout = useLogout();
-  const hydrated = useHydrated();
 
   if (!current.data) {
     return (
@@ -29,14 +24,10 @@ export function InvoiceWorkspace({ screen }: { screen: InvoiceScreen }) {
 
   const user = current.data;
   return (
-    <>
-      <DashboardHeader user={user} disabled={!hydrated || logout.isPending || logout.isSuccess} signOut={() => logout.mutate()} />
-      <main className="mx-auto max-w-7xl px-6 py-9" key={user.id}>
-        {logout.error && <p role="alert" className="mb-4 text-destructive">{logout.error.message}</p>}
+    <div key={user.id}>
         {screen.view === "list" && <InvoiceList userId={user.id} />}
         {screen.view === "upload" && <InvoiceUploadForm userId={user.id} maxBytes={screen.maxBytes} />}
         {screen.view === "detail" && <InvoiceDetail userId={user.id} id={screen.id} />}
-      </main>
-    </>
+    </div>
   );
 }

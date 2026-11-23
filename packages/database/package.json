@@ -5,10 +5,10 @@
   "main": "./index.js",
   "types": "./index.d.ts",
   "scripts": {
-    "migrate:deploy": "prisma migrate deploy",
-    "migrate:status": "prisma migrate status",
-    "generate": "prisma generate",
-    "validate": "prisma validate"
+    "migrate:deploy": "node ./node_modules/prisma/build/index.js migrate deploy",
+    "migrate:status": "node ./node_modules/prisma/build/index.js migrate status",
+    "generate": "node ./node_modules/prisma/build/index.js generate",
+    "validate": "node ./node_modules/prisma/build/index.js validate"
   },
   "dependencies": {
     "@prisma/client": "6.19.3"

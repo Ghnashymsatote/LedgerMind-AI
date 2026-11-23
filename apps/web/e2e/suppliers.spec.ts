@@ -14,18 +14,31 @@ test("an admin signs in, maintains a supplier, and signs out", async ({ page }) 
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByRole("heading", { name: "Suppliers & mappings" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Suppliers", exact: true })).toBeVisible();
 
-  await page.getByLabel("Supplier name").fill(supplierName);
-  await page.getByLabel("Tally ledger name").fill("Browser ledger");
-  await page.getByRole("button", { name: "Add supplier" }).click();
+  await page.getByRole("button", { name: "Add Supplier" }).click();
+  const createSheet = page.getByRole("dialog", { name: "Add supplier" });
+  await expect(createSheet).toBeVisible();
+  await createSheet.getByLabel("Supplier name").fill(supplierName);
+  await createSheet.getByLabel("Tally ledger name").fill("Browser ledger");
+  await createSheet.getByRole("button", { name: "Add supplier" }).click();
+  await expect(page.getByText("Supplier added successfully.")).toBeVisible();
+  await expect(createSheet).toBeHidden();
   await expect(page.getByRole("row", { name: new RegExp(supplierName) })).toContainText("Browser ledger");
-  await page.getByRole("button", { name: `Edit ${supplierName}` }).click();
-  await page.getByLabel("Status").selectOption("INACTIVE");
-  await page.getByRole("button", { name: "Save changes" }).click();
+
+  await page.getByRole("button", { name: `Open actions for ${supplierName}` }).click();
+  await page.getByRole("menuitem", { name: "Edit supplier" }).click();
+  const editSheet = page.getByRole("dialog", { name: "Edit supplier" });
+  await expect(editSheet).toBeVisible();
+  await editSheet.getByRole("combobox", { name: "Status" }).click();
+  await page.getByRole("option", { name: "Inactive" }).click();
+  await editSheet.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByText("Supplier updated successfully.")).toBeVisible();
+  await expect(editSheet).toBeHidden();
   await expect(page.getByRole("row", { name: new RegExp(supplierName) })).toContainText("Inactive");
 
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("button", { name: `Open account menu for ${email}` }).click();
+  await page.getByRole("menuitem", { name: "Sign out" }).click();
   await expect(page).toHaveURL(/\/login$/);
   await page.goto("/suppliers");
   await expect(page).toHaveURL(/\/login$/);
@@ -42,10 +55,10 @@ test("an operator can view supplier records with read-only access", async ({ pag
   await page.getByLabel("Email").fill(operatorEmail);
   await page.getByLabel("Password").fill(operatorPassword);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByText("View supplier records and their Tally ledger mappings.")).toBeVisible();
+  await expect(page.getByText("Manage supplier records and maintain the accounting ledger mappings used for invoice processing.")).toBeVisible();
   await expect(page.getByRole("table")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Add supplier" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: /^Edit / })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Add Supplier" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Open actions for / })).toHaveCount(0);
 
   const identity = await page.request.get("/api/auth/me");
   expect(identity.ok()).toBe(true);
@@ -57,4 +70,27 @@ test("an operator can view supplier records with read-only access", async ({ pag
   });
   expect(forbidden.status()).toBe(403);
   expect(await forbidden.json()).toEqual({ error: "Administrator access is required." });
+});
+
+test("the suppliers page is responsive in light and dark themes", async ({ page }) => {
+  test.skip(!email || !password, "Supply a dedicated admin account for visual supplier verification.");
+  if (!email || !password) return;
+
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password").fill(password);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByRole("heading", { name: "Suppliers", exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Change color theme" }).click();
+  await page.getByRole("menuitemradio", { name: "Dark" }).click();
+  await expect(page.locator("html")).toHaveClass(/dark/);
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+
+  await page.getByRole("button", { name: "Change color theme" }).click();
+  await page.getByRole("menuitemradio", { name: "Light" }).click();
+  await expect(page.locator("html")).not.toHaveClass(/dark/);
+  await page.getByRole("button", { name: "Add Supplier" }).click();
+  await expect(page.getByRole("dialog", { name: "Add supplier" })).toBeVisible();
 });
