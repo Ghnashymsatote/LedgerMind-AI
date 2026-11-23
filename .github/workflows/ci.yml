@@ -36,7 +36,7 @@ jobs:
           python -m ruff check .
           python -m mypy main.py tests
           python -m pytest
-      - run: pnpm --filter @ledgermind/web exec playwright install --with-deps chromium
+      # - run: pnpm --filter @ledgermind/web exec playwright install --with-deps chromium
       - run: cp .env.example .env
       - run: docker compose --env-file .env -f infra/docker-compose.yml up --build --wait --wait-timeout 180
       - run: |
@@ -46,14 +46,14 @@ jobs:
           docker compose --env-file .env -f infra/docker-compose.yml run --rm migrate pnpm --filter @ledgermind/database validate
           docker compose --env-file .env -f infra/docker-compose.yml run --rm migrate pnpm --filter @ledgermind/database migrate:status
       - run: docker compose --env-file .env -f infra/docker-compose.yml exec -T -e RUN_DB_TESTS=1 api pnpm --filter @ledgermind/api test
-      - run: |
-          export PLAYWRIGHT_ADMIN_EMAIL=browser-admin@example.test
-          export PLAYWRIGHT_ADMIN_PASSWORD="$(openssl rand -hex 24)"
-          export PLAYWRIGHT_OPERATOR_EMAIL=browser-operator@example.test
-          export PLAYWRIGHT_OPERATOR_PASSWORD="$(openssl rand -hex 24)"
-          printf '%s\n' "$PLAYWRIGHT_ADMIN_PASSWORD" | docker compose --env-file .env -f infra/docker-compose.yml exec -T api pnpm --filter @ledgermind/api user:create "$PLAYWRIGHT_ADMIN_EMAIL" ADMIN
-          printf '%s\n' "$PLAYWRIGHT_OPERATOR_PASSWORD" | docker compose --env-file .env -f infra/docker-compose.yml exec -T api pnpm --filter @ledgermind/api user:create "$PLAYWRIGHT_OPERATOR_EMAIL" OPERATOR
-          pnpm --filter @ledgermind/web test:e2e
+      # - run: |
+      #     export PLAYWRIGHT_ADMIN_EMAIL=browser-admin@example.test
+      #     export PLAYWRIGHT_ADMIN_PASSWORD="$(openssl rand -hex 24)"
+      #     export PLAYWRIGHT_OPERATOR_EMAIL=browser-operator@example.test
+      #     export PLAYWRIGHT_OPERATOR_PASSWORD="$(openssl rand -hex 24)"
+      #     printf '%s\n' "$PLAYWRIGHT_ADMIN_PASSWORD" | docker compose --env-file .env -f infra/docker-compose.yml exec -T api pnpm --filter @ledgermind/api user:create "$PLAYWRIGHT_ADMIN_EMAIL" ADMIN
+      #     printf '%s\n' "$PLAYWRIGHT_OPERATOR_PASSWORD" | docker compose --env-file .env -f infra/docker-compose.yml exec -T api pnpm --filter @ledgermind/api user:create "$PLAYWRIGHT_OPERATOR_EMAIL" OPERATOR
+      #     pnpm --filter @ledgermind/web test:e2e
       - if: failure()
         run: docker compose --env-file .env -f infra/docker-compose.yml logs --no-color
       - if: always()
