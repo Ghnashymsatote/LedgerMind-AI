@@ -26,10 +26,14 @@ test("an operator uploads an invoice and can find and download it", async ({ pag
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByRole("heading", { name: "Suppliers & mappings" })).toBeVisible();
-  await page.getByRole("navigation", { name: "Dashboard" }).getByRole("link", { name: "Invoices" }).click();
-  await page.getByRole("link", { name: "Upload invoice" }).click();
+  await expect(page).toHaveURL(/\/invoices\/upload\/?$/);
 
+  await expect(
+    page.getByRole("combobox", {
+      name: "Supplier",
+      exact: true,
+    })
+  ).toBeVisible();
   const fileName = `invoice-${supplierName}.png`;
   const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+yZ1kAAAAASUVORK5CYII=", "base64");
   const supplierSelect = page.getByRole("combobox", { name: "Supplier", exact: true });
