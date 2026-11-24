@@ -1,6 +1,6 @@
 import { pipeline } from "node:stream/promises";
 import type { Request, Response } from "express";
-import { fileOptions, invoiceFilters, invoiceId, uploadFields } from "./invoice.schema.js";
+import { fileOptions, invoiceCorrection, invoiceFilters, invoiceId, uploadFields } from "./invoice.schema.js";
 import type { InvoiceService } from "./invoice.service.js";
 
 export function createInvoiceController(invoices: InvoiceService, maxBytes: number) {
@@ -43,6 +43,26 @@ export function createInvoiceController(invoices: InvoiceService, maxBytes: numb
         return;
       }
       response.json(invoice);
+    },
+
+    async retry(request: Request<{ id: string }>, response: Response) {
+      const id = invoiceId.safeParse(request.params.id);
+      if (!id.success) { response.status(404).json({ error: "Invoice not found." }); return; }
+      const result = await invoices.retry(id.data);
+      if (result.outcome === "missing") response.status(404).json({ error: "Invoice not found." });
+      else if (result.outcome === "conflict") response.status(409).json({ error: "This invoice cannot be extracted again in its current state." });
+      else response.json(await invoices.detail(id.data));
+    },
+
+    async save(request: Request<{ id: string }>, response: Response) {
+      const id = invoiceId.safeParse(request.params.id);
+      const body = invoiceCorrection.safeParse(request.body);
+      if (!id.success) { response.status(404).json({ error: "Invoice not found." }); return; }
+      if (!body.success) { response.status(400).json({ error: "Check the invoice fields and decimal formats." }); return; }
+      const result = await invoices.save(id.data, body.data);
+      if (result.outcome === "missing") response.status(404).json({ error: "Invoice not found." });
+      else if (result.outcome === "conflict") response.status(409).json({ error: "Only invoices needing review can be edited." });
+      else response.json(result.invoice);
     },
 
     async file(request: Request<{ id: string }>, response: Response) {

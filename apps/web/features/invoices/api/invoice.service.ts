@@ -1,5 +1,5 @@
 import { apiClient } from "@/lib/api/api-client";
-import type { Invoice, InvoiceFilters, InvoicePage } from "../types/invoice.types";
+import type { Invoice, InvoiceCorrection, InvoiceDetail, InvoiceFilters, InvoicePage } from "../types/invoice.types";
 
 export function getInvoices(filters: InvoiceFilters, signal?: AbortSignal) {
   const params = new URLSearchParams({ page: String(filters.page), pageSize: String(filters.pageSize) });
@@ -10,7 +10,15 @@ export function getInvoices(filters: InvoiceFilters, signal?: AbortSignal) {
 }
 
 export function getInvoice(id: string, signal?: AbortSignal) {
-  return apiClient.request<Invoice>(`/invoices/${encodeURIComponent(id)}`, { signal });
+  return apiClient.request<InvoiceDetail>(`/invoices/${encodeURIComponent(id)}`, { signal });
+}
+
+export function saveInvoice(id: string, data: InvoiceCorrection) {
+  return apiClient.request<InvoiceDetail>(`/invoices/${encodeURIComponent(id)}`, { method: "PATCH", body: data });
+}
+
+export function retryExtraction(id: string) {
+  return apiClient.request<InvoiceDetail>(`/invoices/${encodeURIComponent(id)}/extraction/retry`, { method: "POST" });
 }
 
 export function uploadInvoice({ supplierId, file }: { supplierId: string; file: File }) {

@@ -1,6 +1,6 @@
 # LedgerMind AI
 
-LedgerMind AI helps small businesses review supplier invoice data before sending approved vouchers to Tally. This checkout includes authentication, supplier management, and Phase 1B invoice intake. The [approved blueprint](PROJECT_BLUEPRINT.md) defines the MVP.
+LedgerMind AI helps small businesses review supplier invoice data before sending approved vouchers to Tally. This checkout includes authentication, supplier management, invoice intake, and Phase 2 AI-assisted invoice extraction and correction. The [approved blueprint](PROJECT_BLUEPRINT.md) defines the MVP.
 
 ## Start on Windows
 
@@ -86,6 +86,18 @@ Sessions expire after eight hours. Logout revokes the session in PostgreSQL. The
 4. After upload, check the `UPLOADED` status, uploader, supplier, file size, and timestamp. Use **View file** or **Download file**.
 5. Return to **Invoices** and search by file or supplier name. You can also filter by supplier and status and navigate through result pages.
 6. Try uploading a text file renamed to `.pdf` or a file larger than the limit. Sign out and revisit the invoice detail or file URL to verify access is blocked.
+
+After upload, Express sends the private PDF/JPEG/PNG bytes to FastAPI. The default deterministic mock provider does not read or invent document values: it supplies trusted context, flags the invoice for review, and lets the operator enter GST and financial fields while viewing the original document. Corrections include supplier/buyer GSTIN, invoice identity, HSN/SAC line items, taxable amounts, tax rates, CGST, SGST, IGST, total tax, and invoice total. Values are validated and stored as PostgreSQL decimals.
+
+The default configuration requires no AI key:
+
+```dotenv
+EXTRACTION_PROVIDER=mock
+EXTRACTION_TIMEOUT_MS=30000
+GEMINI_MODEL=gemini-2.5-flash
+```
+
+To test Gemini later, set `EXTRACTION_PROVIDER=gemini` and put `GEMINI_API_KEY` only in the local `.env` or a deployment secret store, then recreate `ai-service` and `api`. Never commit the key. Gemini output remains a proposal: missing or unclear values are null and must be reviewed. A failed or timed-out request changes the invoice to `EXTRACTION_FAILED`; use **Retry extraction** after restoring the service. Successful extractions cannot be retried, preventing accidental duplicate requests.
 
 The API keeps files in the private `invoice-files` Docker volume at `/var/lib/ledgermind/invoices`. PostgreSQL stores metadata and a random storage key. The API detects the file format from its bytes and uses the detected format for the displayed extension and response type. The normal Compose `down` command retains both data volumes. For API development outside Compose, set `INVOICE_STORAGE_DIR` to a private directory. The default is the ignored project-root `.invoice-files` directory when started through the API package scripts.
 

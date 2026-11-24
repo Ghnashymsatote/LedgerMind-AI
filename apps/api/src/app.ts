@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@ledgermind/database";
 import express from "express";
 import type { InvoiceStorage } from "./lib/invoice-storage.js";
+import type { ExtractionClient } from "./lib/extraction-client.js";
 import { registerInvoiceRoutes } from "./modules/invoices/invoice.routes.js";
 import { createInvoiceService } from "./modules/invoices/invoice.service.js";
 import { createRequireSession } from "./middleware/authentication.js";
@@ -14,7 +15,7 @@ import { createSupplierService } from "./modules/suppliers/supplier.service.js";
 interface BusinessDependencies {
   db: PrismaClient;
   origin: string;
-  invoices?: { storage: InvoiceStorage; maxBytes: number };
+  invoices?: { storage: InvoiceStorage; maxBytes: number; extraction: ExtractionClient };
 }
 
 export function createApp(checkDatabase: () => Promise<unknown>, business?: BusinessDependencies) {
@@ -54,9 +55,9 @@ export function createApp(checkDatabase: () => Promise<unknown>, business?: Busi
   registerSupplierRoutes(router, supplierService, requireSession);
 
   if (invoices) {
-    const invoiceService = createInvoiceService(db, invoices.storage);
+    const invoiceService = createInvoiceService(db, invoices.storage, invoices.extraction);
 
-    router.use("/invoices", protectOrigin);
+    router.use("/invoices", protectOrigin, express.json({ limit: "256kb" }));
     registerInvoiceRoutes(router, invoiceService, requireSession, invoices.maxBytes);
   }
 

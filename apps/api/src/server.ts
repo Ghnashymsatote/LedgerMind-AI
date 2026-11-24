@@ -2,6 +2,7 @@ import { PrismaClient } from "@ledgermind/database";
 import { z } from "zod";
 import { createApp } from "./app.js";
 import { createLocalInvoiceStorage } from "./lib/invoice-storage.js";
+import { createExtractionClient } from "./lib/extraction-client.js";
 
 const environmentSchema = z.object({
   DATABASE_URL: z.url({ protocol: /^postgres(?:ql)?$/ }),
@@ -12,6 +13,8 @@ const environmentSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(3001),
   INVOICE_MAX_FILE_BYTES: z.coerce.number().int().min(1).max(50 * 1024 * 1024).default(10 * 1024 * 1024),
   INVOICE_STORAGE_DIR: z.string().trim().min(1).default("../../.invoice-files"),
+  AI_SERVICE_URL: z.url({ protocol: /^https?$/ }),
+  EXTRACTION_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120_000).default(30_000),
 });
 
 function validateEnvironment() {
@@ -36,6 +39,7 @@ const app = createApp(
     invoices: {
       storage: invoiceStorage,
       maxBytes: environment.INVOICE_MAX_FILE_BYTES,
+      extraction: createExtractionClient(environment.AI_SERVICE_URL, environment.EXTRACTION_TIMEOUT_MS),
     },
   },
 );

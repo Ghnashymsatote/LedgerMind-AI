@@ -47,6 +47,15 @@ model Supplier {
 
 enum InvoiceStatus {
   UPLOADED
+  PROCESSING
+  NEEDS_REVIEW
+  EXTRACTION_FAILED
+}
+
+enum ExtractionStatus {
+  PROCESSING
+  SUCCEEDED
+  FAILED
 }
 
 model Invoice {
@@ -59,10 +68,60 @@ model Invoice {
   storageKey   String        @unique
   uploadedAt   DateTime      @default(now())
   status       InvoiceStatus @default(UPLOADED)
+  invoiceNumber String?
+  invoiceDate   DateTime?     @db.Date
+  supplierGstin String?
+  buyerName     String?
+  buyerGstin    String?
+  currency      String        @default("INR") @db.VarChar(3)
+  taxableAmount Decimal?      @db.Decimal(18, 2)
+  cgstAmount    Decimal?      @db.Decimal(18, 2)
+  sgstAmount    Decimal?      @db.Decimal(18, 2)
+  igstAmount    Decimal?      @db.Decimal(18, 2)
+  totalTax      Decimal?      @db.Decimal(18, 2)
+  invoiceTotal  Decimal?      @db.Decimal(18, 2)
+  extractionWarnings Json?
+  extractionConfidence Json?
   supplier     Supplier      @relation(fields: [supplierId], references: [id], onDelete: Restrict)
   uploadedBy   User          @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+  lines        InvoiceLine[]
+  extractionRuns ExtractionRun[]
 
   @@index([uploadedAt, id])
   @@index([supplierId, uploadedAt, id])
   @@index([uploadedById])
+}
+
+model InvoiceLine {
+  id            String   @id @default(uuid()) @db.Uuid
+  invoiceId     String   @db.Uuid
+  position      Int
+  description   String?
+  hsnSac        String?
+  quantity      Decimal? @db.Decimal(18, 4)
+  unitPrice     Decimal? @db.Decimal(18, 2)
+  taxableAmount Decimal? @db.Decimal(18, 2)
+  taxRate       Decimal? @db.Decimal(7, 4)
+  cgstAmount    Decimal? @db.Decimal(18, 2)
+  sgstAmount    Decimal? @db.Decimal(18, 2)
+  igstAmount    Decimal? @db.Decimal(18, 2)
+  totalAmount   Decimal? @db.Decimal(18, 2)
+  invoice       Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@unique([invoiceId, position])
+}
+
+model ExtractionRun {
+  id          String           @id @default(uuid()) @db.Uuid
+  invoiceId   String           @db.Uuid
+  status      ExtractionStatus @default(PROCESSING)
+  provider    String?
+  model       String?
+  rawResult   Json?
+  error       String?
+  startedAt   DateTime         @default(now())
+  completedAt DateTime?
+  invoice     Invoice          @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId, startedAt])
 }

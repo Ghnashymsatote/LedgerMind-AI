@@ -34,7 +34,18 @@ describe.skipIf(process.env.RUN_DB_TESTS !== "1")("invoice routes with PostgreSQ
     supplierId = supplier.id;
 
     server = createApp(() => db.$queryRaw`SELECT 1`, {
-      db, origin, invoices: { storage: createLocalInvoiceStorage(directory), maxBytes },
+      db, origin, invoices: { storage: createLocalInvoiceStorage(directory), maxBytes, extraction: {
+        extract: async ({ supplierName }) => ({
+          provider: "mock", model: "test", supplier_name: { value: supplierName, confidence: 1 },
+          supplier_gstin: { value: null, confidence: null }, buyer_name: { value: null, confidence: null },
+          buyer_gstin: { value: null, confidence: null }, invoice_number: { value: null, confidence: null },
+          invoice_date: { value: null, confidence: null }, currency: { value: "INR", confidence: 1 },
+          taxable_amount: { value: null, confidence: null }, cgst_amount: { value: null, confidence: null },
+          sgst_amount: { value: null, confidence: null }, igst_amount: { value: null, confidence: null },
+          total_tax: { value: null, confidence: null }, invoice_total: { value: null, confidence: null },
+          lines: [], warnings: ["test mock"],
+        }),
+      } },
     }).listen(0, "127.0.0.1");
     await once(server, "listening");
     const address = server.address();
@@ -102,7 +113,7 @@ describe.skipIf(process.env.RUN_DB_TESTS !== "1")("invoice routes with PostgreSQ
     expect(first.status).toBe(201);
     const invoice = await first.json();
     expect(invoice).toMatchObject({
-      status: "UPLOADED", fileName: "quarterly-statement.pdf", mimeType: "application/pdf",
+      status: "NEEDS_REVIEW", fileName: "quarterly-statement.pdf", mimeType: "application/pdf",
       sizeBytes: maxBytes, supplier: { id: supplierId }, uploadedBy: { email },
     });
     expect(invoice).not.toHaveProperty("storageKey");
@@ -111,7 +122,7 @@ describe.skipIf(process.env.RUN_DB_TESTS !== "1")("invoice routes with PostgreSQ
     expect(second.status).toBe(201);
     const image = await second.json();
     expect(image.fileName).toBe("réçu.png");
-    const filter = `supplierId=${supplierId}&status=UPLOADED&pageSize=1`;
+    const filter = `supplierId=${supplierId}&status=NEEDS_REVIEW&pageSize=1`;
     const firstPage = await (await get(`/invoices?${filter}&page=1`)).json();
     const secondPage = await (await get(`/invoices?${filter}&page=2`)).json();
     expect(firstPage).toMatchObject({ total: 2, page: 1, pageSize: 1, items: [{ id: image.id }] });
@@ -121,7 +132,24 @@ describe.skipIf(process.env.RUN_DB_TESTS !== "1")("invoice routes with PostgreSQ
     const bySupplierName = await (await get(`/invoices?${filter}&search=${encodeURIComponent(supplierName)}`)).json();
     expect(bySupplierName.total).toBe(2);
     expect((await get("/invoices?page=0")).status).toBe(400);
-    expect(await (await get(`/invoices/${invoice.id}`)).json()).toEqual(invoice);
+    const extracted = await (await get(`/invoices/${invoice.id}`)).json();
+    expect(extracted).toMatchObject({ ...invoice, currency: "INR", lines: [], extractionWarnings: ["test mock"] });
+    expect(extracted.extractionRuns).toMatchObject([{ status: "SUCCEEDED", provider: "mock", model: "test" }]);
+    const retry = await fetch(`${base}/invoices/${invoice.id}/extraction/retry`, { method: "POST", headers: { Origin: origin, Cookie: cookie } });
+    expect(retry.status).toBe(409);
+    const correction = await fetch(`${base}/invoices/${invoice.id}`, {
+      method: "PATCH", headers: { Origin: origin, Cookie: cookie, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        invoiceNumber: "INV-100", invoiceDate: "2026-11-24", supplierGstin: "27AAPFU0939F1ZV",
+        buyerName: "Example Buyer", buyerGstin: null, currency: "INR", taxableAmount: "1000.00",
+        cgstAmount: "90.00", sgstAmount: "90.00", igstAmount: null, totalTax: "180.00",
+        invoiceTotal: "1180.00", lines: [{ description: "Service", hsnSac: "9983", quantity: "1.0000",
+          unitPrice: "1000.00", taxableAmount: "1000.00", taxRate: "18.0000", cgstAmount: "90.00",
+          sgstAmount: "90.00", igstAmount: null, totalAmount: "1180.00" }],
+      }),
+    });
+    expect(correction.status).toBe(200);
+    expect(await correction.json()).toMatchObject({ invoiceNumber: "INV-100", invoiceTotal: "1180", lines: [{ hsnSac: "9983", quantity: "1" }] });
     expect((await get(`/invoices/${invoice.id}`, false)).status).toBe(401);
 
     const path = `/invoices/${invoice.id}/file`;

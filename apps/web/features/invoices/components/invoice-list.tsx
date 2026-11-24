@@ -20,7 +20,7 @@ export function InvoiceList({ userId }: { userId: string }) {
     setFilters((previous) => ({
       ...previous, page: 1, search: String(input.get("search") ?? "").trim(),
       supplierId: String(input.get("supplierId") ?? ""),
-      status: input.get("status") === "UPLOADED" ? "UPLOADED" : "",
+      status: (["UPLOADED", "PROCESSING", "NEEDS_REVIEW", "EXTRACTION_FAILED"] as const).find((status) => status === input.get("status")) ?? "",
     }));
   }
 
@@ -46,6 +46,9 @@ export function InvoiceList({ userId }: { userId: string }) {
           <select name="status" disabled={!hydrated} className="field">
             <option value="">All statuses</option>
             <option value="UPLOADED">Uploaded</option>
+            <option value="PROCESSING">Processing</option>
+            <option value="NEEDS_REVIEW">Needs review</option>
+            <option value="EXTRACTION_FAILED">Extraction failed</option>
           </select>
         </label>
         <button className="button button-secondary" type="submit" disabled={!hydrated}>Apply filters</button>
@@ -73,7 +76,7 @@ export function InvoiceList({ userId }: { userId: string }) {
                   <tr key={invoice.id}>
                     <th className="break-words px-4 py-3 font-medium" scope="row"><Link className="underline underline-offset-4" href={`/invoices/${invoice.id}`}>{invoice.fileName}</Link></th>
                     <td className="px-4 py-3">{invoice.supplier.name}</td>
-                    <td className="px-4 py-3">Uploaded</td>
+                    <td className="px-4 py-3">{invoice.status.replaceAll("_", " ")}</td>
                     <td className="px-4 py-3"><time dateTime={invoice.uploadedAt}>{new Date(invoice.uploadedAt).toLocaleDateString()}</time></td>
                   </tr>
                 ))}

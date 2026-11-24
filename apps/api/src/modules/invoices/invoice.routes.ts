@@ -29,6 +29,8 @@ export function registerInvoiceRoutes(router: Router, invoices: InvoiceService, 
 
   router.use("/invoices", requireSession);
   router.post("/invoices/upload", upload, controller.upload);
+  router.post("/invoices/:id/extraction/retry", controller.retry);
+  router.patch("/invoices/:id", controller.save);
   router.get("/invoices", controller.list);
   router.get("/invoices/:id/file", controller.file);
   router.get("/invoices/:id", controller.detail);
